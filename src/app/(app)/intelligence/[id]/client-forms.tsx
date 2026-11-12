@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Sparkles } from "lucide-react";
 import { Input, Select, Textarea } from "@/components/ui/input";
-import { FormMessage, SubmitButton } from "@/components/shared/form";
+import { ActionForm, FormMessage, SubmitButton } from "@/components/shared/form";
 import { DEPARTMENTS, PRIORITIES } from "@/lib/intel/taxonomy";
 import { addNote, analyzeItem, createTaskFromRecommendation, linkClientImpact } from "../actions";
 
@@ -57,14 +57,12 @@ export function TaskFromRecommendation({
 }
 
 export function NoteForm({ id }: { id: string }) {
-  const [state, action] = useActionState(addNote, {});
   return (
-    <form action={action} className="flex flex-col gap-2" key={state.ok ? Date.now() : "note"}>
+    <ActionForm action={addNote} resetOnSuccess className="gap-2">
       <input type="hidden" name="id" value={id} />
       <Textarea name="body" rows={2} placeholder="Add an internal note…" required aria-label="Internal note" />
       <SubmitButton size="sm" variant="secondary" pendingLabel="Saving…">Add note</SubmitButton>
-      <FormMessage state={state} />
-    </form>
+    </ActionForm>
   );
 }
 

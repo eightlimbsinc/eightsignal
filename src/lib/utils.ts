@@ -49,3 +49,12 @@ export function splitList(input: FormDataEntryValue | null | undefined): string[
   if (typeof input !== "string") return [];
   return [...new Set(input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean))];
 }
+
+/** ISO timestamp `days` ago (request-time helper for server components). */
+export function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}
+
+export function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}

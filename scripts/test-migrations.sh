@@ -14,10 +14,11 @@ if [ "$(id -u)" = "0" ]; then chown -R postgres "$TMP"; RUNAS=(runuser -u postgr
 "${RUNAS[@]}" "$PGBIN/pg_ctl" -D "$TMP/data" -o "-p $PORT -k $TMP" -l "$TMP/log" start >/dev/null
 PSQL=("${RUNAS[@]}" "$PGBIN/psql" -h "$TMP" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -q)
 "${PSQL[@]}" -f "$ROOT/supabase/tests/auth_stub.sql"
+"${PSQL[@]}" -c "create extension if not exists pgcrypto;"
 for f in "$ROOT"/supabase/migrations/*.sql; do
-  echo "applying $(basename "$f")"
-  "${PSQL[@]}" -f "$f"
+  echo "applying $(basename "$f") as app_owner"
+  "${PSQL[@]}" -U app_owner -d postgres -f "$f"
 done
-"${PSQL[@]}" -f "$ROOT/supabase/seed.sql" >/dev/null
-"${PSQL[@]}" -c "truncate public.clients, public.sources cascade;"
+"${PSQL[@]}" -U app_owner -d postgres -f "$ROOT/supabase/seed.sql" >/dev/null
+"${PSQL[@]}" -c "truncate public.clients, public.sources cascade;" 2>/dev/null
 "${PSQL[@]}" -f "$ROOT/supabase/tests/rls_test.sql"

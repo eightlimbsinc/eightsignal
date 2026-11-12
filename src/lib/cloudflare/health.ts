@@ -40,3 +40,15 @@ export function computeHealth(input: HealthInput): { status: HealthStatus; reaso
   if (sev.has("medium")) return { status: "needs_review", reason: "Open medium-severity findings." };
   return { status: "healthy", reason: "All required checks completed with no significant open findings." };
 }
+
+export const CHECK_NAMES: Record<string, string> = {
+  api_connection: "API connection",
+  waf_rules: "WAF custom rules",
+  redirect_rules: "Redirect rules",
+  bot_settings: "Bot settings",
+  ai_crawler_policies: "AI crawler policies",
+  security_events: "Security events",
+  audit_log: "Account audit log",
+  robots_txt: "robots.txt",
+  access_tests: "Accessibility tests",
+};

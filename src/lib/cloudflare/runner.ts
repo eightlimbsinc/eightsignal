@@ -222,7 +222,7 @@ async function runConfigChecks(ctx: RunContext, client: CloudflareReadOnlyClient
           .select("id")
           .eq("zone_id", ctx.zone.id)
           .eq("detection_source", "audit_log")
-          .contains("diff", [{ audit_log_id: l.id }])
+          .filter("diff", "cs", JSON.stringify([{ audit_log_id: l.id }]))
           .maybeSingle();
         if (exists) continue;
         await ctx.db.from("cloudflare_config_changes").insert({
@@ -502,7 +502,7 @@ async function persistFindings(ctx: RunContext) {
   if (stale.length) {
     await ctx.db
       .from("cloudflare_findings")
-      .update({ status: "resolved", resolved_at: now, evidence: { auto_resolved: true, reason: "No longer detected by audit" } })
+      .update({ status: "resolved", resolved_at: now })
       .in("id", stale.map((s) => s.id));
   }
 }

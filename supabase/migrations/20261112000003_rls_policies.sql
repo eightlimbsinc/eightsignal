@@ -16,7 +16,6 @@ begin
   ]
   loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('alter table public.%I force row level security', t);
     execute format('revoke all on public.%I from anon', t);
   end loop;
 end;
@@ -101,7 +100,7 @@ create policy cloudflare_incidents_update on public.cloudflare_incidents for upd
 create policy cloudflare_incidents_delete on public.cloudflare_incidents for delete to authenticated
   using (public.is_admin());
 
--- cloudflare_credentials: RLS enabled and forced with NO policies => only the
+-- cloudflare_credentials: RLS enabled with NO policies => only the
 -- service role (which bypasses RLS) can read or write it.
 revoke all on public.cloudflare_credentials from authenticated;
 
@@ -109,7 +108,6 @@ revoke all on public.cloudflare_credentials from authenticated;
 revoke update, delete on public.activity_logs from authenticated;
 revoke update, delete on public.cloudflare_config_snapshots from authenticated;
 
-grant usage on schema public to authenticated;
 grant execute on function public.is_member(), public.is_editor(), public.is_admin(), public.current_role_name() to authenticated;
 revoke execute on function public.is_member(), public.is_editor(), public.is_admin(), public.current_role_name() from public, anon;
 grant execute on function public.is_member(), public.is_editor(), public.is_admin(), public.current_role_name() to authenticated;
