@@ -12,9 +12,18 @@ export async function signInWithPassword(_: ActionState, formData: FormData): Pr
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Email and password are required." };
-  const db = await createClient();
-  const { error } = await db.auth.signInWithPassword({ email, password });
-  if (error) return { error: "Invalid email or password." };
+  try {
+    const db = await createClient();
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error("[login] Supabase rejected sign-in:", error.status, error.code, error.message);
+      if (error.status === 400 || error.code === "invalid_credentials") return { error: "Invalid email or password." };
+      return { error: `Sign-in failed (${error.code ?? error.status ?? "unknown"}). Check the Supabase URL/key settings.` };
+    }
+  } catch (e) {
+    console.error("[login] sign-in threw:", e);
+    return { error: "Could not reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL and the anon/publishable key in Netlify." };
+  }
   redirect(safeNextPath(String(formData.get("next") ?? "/")));
 }
 
