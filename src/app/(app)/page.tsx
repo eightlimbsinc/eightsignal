@@ -157,7 +157,7 @@ export default async function OverviewPage() {
             {zones?.map((z) => (
               <Link key={z.id} href={`/cloudflare/zones/${z.id}`} className="rounded-md border px-3 py-2 text-xs hover:bg-muted/40">
                 <div className="flex items-center justify-between gap-2"><span className="font-medium">{z.domain}</span><HealthBadge status={z.health_status as HealthStatus} /></div>
-                <div className="mt-0.5 text-muted-foreground">{(z.clients as unknown as { name: string } | null)?.name} · {z.health_reason}</div>
+                <div className="mt-0.5 text-muted-foreground">{[(z.clients as unknown as { name: string } | null)?.name, z.health_reason ?? "Not audited yet"].filter(Boolean).join(" · ")}</div>
               </Link>
             ))}
           </CardContent>
