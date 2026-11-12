@@ -68,6 +68,25 @@ do $$ begin
   exception when unique_violation then null; end;
 end $$;
 
+-- Client deletion: analysts cannot; admins can, and it cascades (tasks are kept, unlinked).
+reset role;
+insert into public.cloudflare_zones (id, client_id, domain) values ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'blend360.com');
+insert into public.cloudflare_findings (zone_id, finding_key, finding_type, severity, title, description)
+  values ('30000000-0000-0000-0000-000000000001', 'k', 't', 'high', 'x', 'y');
+insert into public.actions (id, client_id, title) values ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Task');
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+delete from public.clients where id = '10000000-0000-0000-0000-000000000001';
+reset role;
+do $$ begin
+  assert (select count(*) from public.clients) = 0, 'admin delete failed';
+  assert (select count(*) from public.cloudflare_zones) = 0, 'zones not cascaded';
+  assert (select count(*) from public.cloudflare_findings) = 0, 'findings not cascaded';
+  assert (select count(*) from public.cloudflare_credentials) = 0, 'credentials not cascaded';
+  assert (select count(*) from public.cloudflare_incidents) = 0, 'incidents not cascaded';
+  assert (select client_id from public.actions where id = '40000000-0000-0000-0000-000000000001') is null, 'task should be kept and unlinked';
+end $$;
+
 -- Anonymous: nothing.
 reset request.jwt.claim.sub;
 set role anon;

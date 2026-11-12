@@ -4,8 +4,9 @@ import { useActionState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
 import { Field } from "@/components/shared/page";
 import { FormMessage, SubmitButton } from "@/components/shared/form";
+import { Trash2 } from "lucide-react";
 import type { Client } from "@/lib/types";
-import { saveClient } from "./actions";
+import { deleteClient, saveClient } from "./actions";
 
 export function ClientForm({ client }: { client?: Client }) {
   const [state, action] = useActionState(saveClient, {});
@@ -31,5 +32,27 @@ export function ClientForm({ client }: { client?: Client }) {
         <FormMessage state={state} />
       </div>
     </form>
+  );
+}
+
+export function DeleteClientForm({ id, name, counts }: { id: string; name: string; counts: { zones: number; incidents: number; impacts: number; tasks: number } }) {
+  const [state, action] = useActionState(deleteClient, {});
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-xs text-rose-300 hover:underline">Delete this client…</summary>
+      <form action={action} className="mt-3 flex flex-col gap-2">
+        <input type="hidden" name="id" value={id} />
+        <p className="text-xs text-muted-foreground">
+          This permanently deletes <strong className="text-foreground">{name}</strong> and everything attached to it in EightSignal:{" "}
+          {counts.zones} Cloudflare zone(s) with their audits, findings, snapshots and access tests, stored Cloudflare tokens,{" "}
+          {counts.incidents} incident record(s) and {counts.impacts} intelligence link(s). {counts.tasks} task(s) are kept but unlinked.
+          Nothing is changed in Cloudflare. This cannot be undone.
+        </p>
+        <label htmlFor="confirm_name" className="text-xs text-muted-foreground">Type <strong className="text-foreground">{name}</strong> to confirm</label>
+        <Input id="confirm_name" name="confirm_name" autoComplete="off" required />
+        <SubmitButton size="sm" variant="destructive" pendingLabel="Deleting…"><Trash2 /> Delete client permanently</SubmitButton>
+        <FormMessage state={state} />
+      </form>
+    </details>
   );
 }

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireEditor, AuthorizationError } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { requireAdmin, requireEditor, AuthorizationError } from "@/lib/auth";
 import { errorMessage, type ActionState } from "@/lib/action-state";
 import { splitList } from "@/lib/utils";
 import { logActivity } from "@/lib/activity";
@@ -46,4 +47,35 @@ export async function saveClient(_: ActionState, formData: FormData): Promise<Ac
     if (e instanceof AuthorizationError) return { error: e.message };
     return { error: errorMessage(e) };
   }
+}
+
+/**
+ * Permanently deletes a client (admins only; RLS also enforces this). Cascades to the
+ * client's Cloudflare accounts, stored tokens, zones, audits, findings, snapshots,
+ * access tests, incidents and client-impact links. Tasks are kept but unlinked.
+ * Never touches Cloudflare itself.
+ */
+export async function deleteClient(_: ActionState, formData: FormData): Promise<ActionState> {
+  let name: string;
+  try {
+    const { db, user } = await requireAdmin();
+    const id = z.string().uuid().parse(formData.get("id"));
+    const { data: client } = await db.from("clients").select("id, name").eq("id", id).maybeSingle();
+    if (!client) return { error: "Client not found." };
+    const typed = String(formData.get("confirm_name") ?? "").trim();
+    if (typed !== client.name) return { error: `Type the client name exactly ("${client.name}") to confirm.` };
+    const { data: deleted, error } = await db.from("clients").delete().eq("id", id).select("id");
+    if (error) return { error: error.message };
+    if (!deleted?.length) return { error: "Nothing was deleted — administrator access is required." };
+    await logActivity(db, { userId: user.id, action: "client.delete", entityType: "client", entityId: id, metadata: { name: client.name } });
+    name = client.name;
+  } catch (e) {
+    if (e instanceof z.ZodError) return { error: e.issues.map((i) => i.message).join(" · ") };
+    if (e instanceof AuthorizationError) return { error: e.message };
+    return { error: errorMessage(e) };
+  }
+  revalidatePath("/clients");
+  revalidatePath("/cloudflare");
+  revalidatePath("/");
+  redirect(`/clients?deleted=${encodeURIComponent(name)}`);
 }

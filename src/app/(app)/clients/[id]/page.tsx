@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/input";
 import type { Client, HealthStatus } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { updateImpactReview } from "../../intelligence/actions";
-import { ClientForm } from "../client-form";
+import { ClientForm, DeleteClientForm } from "../client-form";
 
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const { id } = await params;
@@ -20,13 +20,14 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
   const editor = canEdit(profile);
   const { data: client } = await db.from("clients").select("*").eq("id", id).maybeSingle();
   if (!client) notFound();
-  const [{ data: impacts }, { data: zones }, { data: tasks }] = await Promise.all([
+  const [{ data: impacts }, { data: zones }, { data: tasks }, { count: incidentCount }] = await Promise.all([
     db.from("client_impacts")
       .select("id, impact_reason, recommended_action, review_status, origin, created_at, owner:profiles!client_impacts_owner_id_fkey(email), intelligence_items(id, title, impact_level, provider, published_at)")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     db.from("cloudflare_zones").select("id, domain, health_status, health_reason, last_audited_at").eq("client_id", id),
     db.from("actions").select("id, title, status, priority, due_date").eq("client_id", id).order("created_at", { ascending: false }).limit(30),
+    db.from("cloudflare_incidents").select("id", { count: "exact", head: true }).eq("client_id", id),
   ]);
   const c = client as Client;
   return (
@@ -79,6 +80,18 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             <Card>
               <CardHeader><CardTitle>Client profile &amp; technology stack</CardTitle></CardHeader>
               <CardContent><ClientForm client={c} /></CardContent>
+            </Card>
+          )}
+          {profile.role === "admin" && (
+            <Card className="border-sev-critical/30">
+              <CardHeader><CardTitle className="text-rose-200">Danger zone</CardTitle></CardHeader>
+              <CardContent>
+                <DeleteClientForm
+                  id={c.id}
+                  name={c.name}
+                  counts={{ zones: zones?.length ?? 0, incidents: incidentCount ?? 0, impacts: impacts?.length ?? 0, tasks: tasks?.length ?? 0 }}
+                />
+              </CardContent>
             </Card>
           )}
         </div>

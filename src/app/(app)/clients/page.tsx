@@ -11,8 +11,9 @@ import { ClientForm } from "./client-form";
 
 export const metadata = { title: "Clients" };
 
-export default async function ClientsPage() {
+export default async function ClientsPage({ searchParams }: PageProps<"/clients">) {
   const { db, profile } = await requireMember();
+  const deleted = (await searchParams).deleted;
   const [{ data: clients }, { data: impacts }, { data: zones }, { data: actions }] = await Promise.all([
     db.from("clients").select("*").order("name"),
     db.from("client_impacts").select("client_id, review_status"),
@@ -21,6 +22,9 @@ export default async function ClientsPage() {
   ]);
   return (
     <>
+      {typeof deleted === "string" && (
+        <p role="status" className="mb-4 rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-green-200">Deleted client “{deleted}”.</p>
+      )}
       <PageHeader title="Clients" description="Client registry and manually recorded technology stacks, used to map intelligence to affected clients. No automatic infrastructure discovery is performed." />
       {!(clients ?? []).length ? (
         <EmptyState icon={Building2} title="No clients registered" description="Register Blend360 first to enable Cloudflare monitoring." />
