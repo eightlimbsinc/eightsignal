@@ -117,3 +117,32 @@ describe("crawler registry", () => {
     expect(identitiesMentioned('http.user_agent contains "Claude-SearchBot"').map((i) => i.key)).toEqual(["claude-searchbot"]);
   });
 });
+
+import { assessAccessOutcomes } from "@/lib/cloudflare/access";
+
+describe("assessAccessOutcomes (data-centre calibration)", () => {
+  const u = { urlId: "u1", url: "https://www.blend360.com/" };
+  it("treats a challenged baseline as medium (verify manually), not critical, and skips crawler comparisons", () => {
+    const f = assessAccessOutcomes([
+      { ...u, identity: "browser", name: "Browser", result: "challenged", status: 403 },
+      { ...u, identity: "googlebot", name: "Googlebot", identityClass: "search", result: "challenged", status: 403 },
+    ]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ type: "access_server_challenged", severity: "medium" });
+  });
+  it("rates a 5xx as critical and a timeout as high", () => {
+    expect(assessAccessOutcomes([{ ...u, identity: "browser", name: "B", result: "error", status: 502 }])[0].severity).toBe("critical");
+    expect(assessAccessOutcomes([{ ...u, identity: "browser", name: "B", result: "timeout", status: null }])[0].severity).toBe("high");
+  });
+  it("rates a spoofed crawler being denied as low (training: info), never high", () => {
+    const f = assessAccessOutcomes([
+      { ...u, identity: "browser", name: "B", result: "accessible", status: 200 },
+      { ...u, identity: "googlebot", name: "Googlebot", identityClass: "search", result: "challenged", status: 403 },
+      { ...u, identity: "gptbot", name: "GPTBot", identityClass: "training", result: "blocked", status: 403 },
+    ]);
+    expect(f.map((x) => x.severity).sort()).toEqual(["info", "low"]);
+  });
+  it("produces nothing when everything is accessible", () => {
+    expect(assessAccessOutcomes([{ ...u, identity: "browser", name: "B", result: "accessible", status: 200 }])).toEqual([]);
+  });
+});

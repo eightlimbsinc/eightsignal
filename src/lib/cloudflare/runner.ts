@@ -7,7 +7,7 @@ import { CloudflareReadOnlyClient, type CfResult } from "./api";
 import { auditWafRules } from "./waf-audit";
 import { auditRedirects, normalizePageRuleRedirects, normalizeSingleRedirects } from "./redirect-audit";
 import { analyzeRobots } from "./robots";
-import { classifyAccess, sanitizeHeaders } from "./access";
+import { assessAccessOutcomes, classifyAccess, sanitizeHeaders, type AccessResult } from "./access";
 import { BASELINE_BROWSER, CRAWLERS, identitiesMentioned } from "./crawlers";
 import { configHash, diffConfigs, type ConfigDiffEntry } from "./snapshot";
 import { computeHealth } from "./health";
@@ -409,38 +409,18 @@ export async function runAccessTests(
   };
   await Promise.all(Array.from({ length: 6 }, worker));
 
-  // Compare each crawler to the baseline browser on the same URL, and to its previous result.
-  const findings: DraftFinding[] = [];
+  // Calibrated comparison (data-centre origin, simulated user-agents) — see assessAccessOutcomes.
   const bad = new Set(["blocked", "challenged"]);
-  for (const r of results) {
-    if (r.identity === BASELINE_BROWSER.key) {
-      if (bad.has(r.result) || r.result === "error" || r.result === "timeout") {
-        findings.push({
-          key: `access:baseline:${r.urlId}`, type: "access_page_inaccessible", severity: "critical",
-          title: `${r.url} is ${r.result} for a normal browser`,
-          description: `A baseline browser request returned ${r.status ?? "no response"} (${r.result}). Real visitors may be affected. Note: tests run from EightSignal's server network, which Cloudflare may score differently from residential visitors.`,
-          recommendation: "Load the page manually and check Cloudflare Security Events for this URL.",
-          evidence: { url: r.url, status: r.status, result: r.result }, identities: [],
-        });
-      }
-      continue;
-    }
-    const baseline = results.find((b) => b.urlId === r.urlId && b.identity === BASELINE_BROWSER.key);
-    if (bad.has(r.result) && baseline && !bad.has(baseline.result)) {
-      const c = CRAWLERS.find((x) => x.key === r.identity)!;
-      findings.push({
-        key: `access:identity:${r.identity}:${r.urlId}`, type: "access_identity_blocked",
-        severity: c.class === "search" ? "high" : c.class === "training" ? "info" : "medium",
-        title: `Simulated ${r.name} request to ${r.url} was ${r.result}`,
-        description: `A request using ${r.name}'s user-agent was ${r.result} (HTTP ${r.status ?? "—"}) while a normal browser was not. This is a SIMULATED request from EightSignal's network — Cloudflare may legitimately block spoofed crawler user-agents that do not come from the provider's IP ranges. Confirm with Security Events whether verified ${r.name} traffic is affected.`,
-        recommendation: "Check Security Events for verified-bot traffic from this identity before changing any rule.",
-        evidence: { url: r.url, status: r.status, result: r.result, test_type: "simulated_user_agent" },
-        identities: [r.identity],
-      });
-    }
-  }
+  const findings: DraftFinding[] = assessAccessOutcomes(
+    results.map((r) => ({
+      ...r,
+      result: r.result as AccessResult,
+      identityClass: CRAWLERS.find((c) => c.key === r.identity)?.class,
+    })),
+  );
   // "Previously accessible, now blocked" detection.
-  for (const r of results.filter((x) => bad.has(x.result) && x.identity !== BASELINE_BROWSER.key)) {
+  const baselineOk = (urlId: string) => results.some((b) => b.urlId === urlId && b.identity === BASELINE_BROWSER.key && (b.result === "accessible" || b.result === "redirected"));
+  for (const r of results.filter((x) => bad.has(x.result) && x.identity !== BASELINE_BROWSER.key && baselineOk(x.urlId))) {
     const { data: prev } = await db
       .from("cloudflare_access_tests")
       .select("result, tested_at")
@@ -456,10 +436,10 @@ export async function runAccessTests(
         diff: [{ url: r.url, identity: r.identity, before: prev.result, after: r.result, previous_test_at: prev.tested_at }],
         potential_impact: `${r.name} was previously able to access ${r.url} and is now ${r.result}.`,
         recommended_action: "Identify what changed (WAF, bot settings, AI Crawl Control) and confirm it was intended.",
-        severity: "high",
+        severity: "medium",
       });
       findings.push({
-        key: `access:regression:${r.identity}:${r.urlId}`, type: "access_regression", severity: "high",
+        key: `access:regression:${r.identity}:${r.urlId}`, type: "access_regression", severity: "medium",
         title: `${r.name} lost access to ${r.url}`,
         description: `The previous test for this identity was accessible; it is now ${r.result}.`,
         recommendation: "Review recent configuration changes for this zone.",
