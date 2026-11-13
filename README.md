@@ -265,6 +265,10 @@ tests/               Vitest unit tests
 Adding a provider: add an entry to `PROVIDERS` in `src/lib/intel/taxonomy.ts`, then add its
 official sources in **Sources**. No schema change is needed.
 
+## Developer guide
+
+See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for architecture, local setup, schema changes, operations runbook and how to extend the platform.
+
 ## Known limitations
 
 See [docs/STATUS.md](docs/STATUS.md).
