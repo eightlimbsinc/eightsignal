@@ -267,7 +267,7 @@ official sources in **Sources**. No schema change is needed.
 
 ## Developer guide
 
-See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for architecture, local setup, schema changes, operations runbook and how to extend the platform.
+End users: [docs/USER_GUIDE.md](docs/USER_GUIDE.md). Developers: [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for architecture, local setup, schema changes, operations runbook and how to extend the platform.
 
 ## Known limitations
 
