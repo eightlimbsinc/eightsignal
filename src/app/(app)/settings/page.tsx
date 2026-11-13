@@ -8,7 +8,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { serverEnv } from "@/lib/env";
 import { formatDate } from "@/lib/utils";
 import { removeAllowedDomain, setUserRole } from "./actions";
-import { DomainForm, NameForm } from "./forms";
+import { DomainForm, NameForm, PasswordForm } from "./forms";
 
 export const metadata = { title: "Settings" };
 
@@ -41,7 +41,13 @@ export default async function SettingsPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader><CardTitle>Your profile</CardTitle><CardDescription>{profile.email} · {profile.role}</CardDescription></CardHeader>
-          <CardContent><NameForm name={profile.full_name ?? ""} /></CardContent>
+          <CardContent className="flex flex-col gap-4">
+            <NameForm name={profile.full_name ?? ""} />
+            <div>
+              <div className="mb-1.5 text-xs font-medium text-muted-foreground">Password</div>
+              <PasswordForm />
+            </div>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>Configuration status</CardTitle><CardDescription>Values are never displayed — only whether they are set.</CardDescription></CardHeader>

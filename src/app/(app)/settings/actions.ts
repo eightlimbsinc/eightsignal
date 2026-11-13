@@ -53,3 +53,20 @@ export async function updateOwnName(_: ActionState, formData: FormData): Promise
     return { error: errorMessage(e) };
   }
 }
+
+/** Lets a signed-in user set or change their own password (e.g. after accepting an invite). */
+export async function setOwnPassword(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const { db, user } = await requireMember();
+    const password = String(formData.get("password") ?? "");
+    const confirm = String(formData.get("confirm") ?? "");
+    if (password.length < 12) return { error: "Use at least 12 characters." };
+    if (password !== confirm) return { error: "The two passwords do not match." };
+    const { error } = await db.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    await logActivity(db, { userId: user.id, action: "user.password_set", entityType: "profile", entityId: user.id });
+    return { ok: true, message: "Password saved. You can now sign in with email + password." };
+  } catch (e) {
+    return { error: errorMessage(e) };
+  }
+}
