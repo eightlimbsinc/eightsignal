@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/utils";
 import type { AiAnalysis } from "@/lib/types";
 import { isAiConfigured } from "@/lib/ai/analyze";
 import { setReadState, toggleBookmark, updateImpactReview, updateItemStatus } from "../actions";
-import { AnalyzeButton, LinkClientForm, NoteForm, TaskFromRecommendation } from "./client-forms";
+import { AnalyzeButton, DeleteIntelligenceForm, LinkClientForm, NoteForm, TaskFromRecommendation } from "./client-forms";
 
 const CLASSIFICATION_LABEL: Record<string, string> = {
   verified_announcement: "Verified announcement",
@@ -251,6 +251,13 @@ export default async function IntelligenceDetail({ params }: PageProps<"/intelli
               <NoteForm id={id} />
             </CardContent>
           </Card>
+
+          {profile.role === "admin" && (
+            <Card className="border-sev-critical/30">
+              <CardHeader><CardTitle className="text-rose-200">Danger zone</CardTitle></CardHeader>
+              <CardContent><DeleteIntelligenceForm id={id} fromSource={Boolean(item.source_id)} /></CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </>

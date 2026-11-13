@@ -5,7 +5,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Field } from "@/components/shared/page";
 import { FormMessage, SubmitButton } from "@/components/shared/form";
 import { CATEGORIES, PROVIDERS } from "@/lib/intel/taxonomy";
-import { createSource, reprocessPending, runSourceNow } from "./actions";
+import { createSource, deleteSource, reprocessPending, runSourceNow } from "./actions";
 
 export function RunNowForm({ id }: { id: string }) {
   const [state, action] = useActionState(runSourceNow, {});
@@ -49,5 +49,22 @@ export function SourceForm() {
         <FormMessage state={state} />
       </div>
     </form>
+  );
+}
+
+export function DeleteSourceForm({ id, name, articleCount }: { id: string; name: string; articleCount: number }) {
+  const [state, action] = useActionState(deleteSource, {});
+  return (
+    <details>
+      <summary className="cursor-pointer text-[11px] text-rose-300 hover:underline">Delete…</summary>
+      <form action={action} className="mt-1.5 flex w-64 flex-col gap-1.5 rounded-md border border-sev-critical/30 p-2">
+        <input type="hidden" name="id" value={id} />
+        <p className="text-[11px] text-muted-foreground">Stops collecting from <strong className="text-foreground">{name}</strong> and removes its collection history.</p>
+        <label className="flex items-center gap-1.5 text-[11px]"><input type="checkbox" name="also_articles" defaultChecked /> Also delete its {articleCount} article(s)</label>
+        <label className="flex items-center gap-1.5 text-[11px]"><input type="checkbox" name="confirm" required /> I understand this cannot be undone</label>
+        <SubmitButton size="sm" variant="destructive" pendingLabel="Deleting…">Delete source</SubmitButton>
+        <FormMessage state={state} />
+      </form>
+    </details>
   );
 }

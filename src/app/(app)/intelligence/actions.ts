@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireEditor, requireMember, AuthorizationError } from "@/lib/auth";
+import { requireAdmin, requireEditor, requireMember, AuthorizationError } from "@/lib/auth";
 import { errorMessage, type ActionState } from "@/lib/action-state";
 import { createIntelligence } from "@/lib/intel/service";
 import { extractPage } from "@/lib/intel/html";
@@ -248,4 +248,24 @@ export async function updateImpactReview(formData: FormData) {
     revalidatePath(`/intelligence/${data.intelligence_id}`);
     revalidatePath(`/clients/${data.client_id}`);
   }
+}
+
+/** Admin-only permanent delete of one intelligence record (analyses, notes, bookmarks, client links cascade; tasks are kept, unlinked). */
+export async function deleteIntelligence(_: ActionState, formData: FormData): Promise<ActionState> {
+  let title: string;
+  try {
+    const { db, user } = await requireAdmin();
+    const id = z.string().uuid().parse(formData.get("id"));
+    if (formData.get("confirm") !== "on") return { error: "Tick the confirmation box first." };
+    const { data, error } = await db.from("intelligence_items").delete().eq("id", id).select("id, title");
+    if (error) return { error: error.message };
+    if (!data?.length) return { error: "Nothing was deleted — administrator access is required." };
+    title = data[0].title;
+    await logActivity(db, { userId: user.id, action: "intelligence.delete", entityType: "intelligence_item", entityId: id, metadata: { title } });
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath("/intelligence");
+  revalidatePath("/");
+  redirect(`/intelligence?deleted=${encodeURIComponent(title.slice(0, 120))}`);
 }

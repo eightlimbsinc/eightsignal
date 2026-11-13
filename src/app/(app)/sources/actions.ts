@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireEditor, AuthorizationError } from "@/lib/auth";
+import { requireAdmin, requireEditor, AuthorizationError } from "@/lib/auth";
 import { errorMessage, type ActionState } from "@/lib/action-state";
 import { CATEGORY_KEYS, PROVIDER_KEYS } from "@/lib/intel/taxonomy";
 import { ingestSource } from "@/lib/ingestion/run";
@@ -109,6 +109,38 @@ export async function reprocessPending(_: ActionState, formData: FormData): Prom
     revalidatePath("/intelligence");
     revalidatePath("/sources");
     return errors.length && !done ? { error: errors.join(" | ") } : { ok: true, message: `Analysed ${done} record(s).${errors.length ? ` Errors: ${errors.join(" | ")}` : ""}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Admin-only: deletes a source (and its collection history). With "also delete
+ * articles", every article collected from it is deleted too (analyses, notes,
+ * bookmarks and client links cascade; tasks are kept, unlinked).
+ */
+export async function deleteSource(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const { db, user } = await requireAdmin();
+    const id = z.string().uuid().parse(formData.get("id"));
+    const alsoArticles = formData.get("also_articles") === "on";
+    if (formData.get("confirm") !== "on") return { error: "Tick the confirmation box first." };
+    const { data: source } = await db.from("sources").select("id, name").eq("id", id).maybeSingle();
+    if (!source) return { error: "Source not found." };
+    let articles = 0;
+    if (alsoArticles) {
+      const { data, error } = await db.from("intelligence_items").delete().eq("source_id", id).select("id");
+      if (error) return { error: error.message };
+      articles = data?.length ?? 0;
+    }
+    const { data: removed, error } = await db.from("sources").delete().eq("id", id).select("id");
+    if (error) return { error: error.message };
+    if (!removed?.length) return { error: "Nothing was deleted — administrator access is required." };
+    await logActivity(db, { userId: user.id, action: "source.delete", entityType: "source", entityId: id, metadata: { name: source.name, articles_deleted: articles } });
+    revalidatePath("/sources");
+    revalidatePath("/intelligence");
+    revalidatePath("/");
+    return { ok: true, message: `Deleted source “${source.name}”${alsoArticles ? ` and ${articles} article(s)` : " (its articles were kept)"}.` };
   } catch (e) {
     return fail(e);
   }

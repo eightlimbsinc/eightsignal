@@ -27,6 +27,7 @@ export default async function IntelligencePage({ searchParams }: PageProps<"/int
   const to = str(sp.to);
   const view = str(sp.view); // "bookmarked" | "unread"
   const page = Math.max(1, Number(str(sp.page)) || 1);
+  const deleted = str(sp.deleted);
 
   const [{ data: bookmarks }, { data: receipts }] = await Promise.all([
     db.from("bookmarks").select("intelligence_id").eq("user_id", user.id),
@@ -63,6 +64,9 @@ export default async function IntelligencePage({ searchParams }: PageProps<"/int
 
   return (
     <>
+      {deleted && (
+        <p role="status" className="mb-4 rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-green-200">Deleted “{deleted}”.</p>
+      )}
       <PageHeader
         title="Intelligence"
         description="Every tracked development, with its original source, AI impact analysis and status."

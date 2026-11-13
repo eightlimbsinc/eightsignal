@@ -8,18 +8,21 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { PROVIDERS, providerName } from "@/lib/intel/taxonomy";
 import { formatDate, relativeTime } from "@/lib/utils";
 import { toggleSource } from "./actions";
-import { ReprocessForm, RunNowForm, SourceForm } from "./forms";
+import { DeleteSourceForm, ReprocessForm, RunNowForm, SourceForm } from "./forms";
 
 export const metadata = { title: "Sources" };
 
 export default async function SourcesPage() {
   const { db, profile } = await requireMember();
   const editor = canEdit(profile);
-  const [{ data: sources }, { data: logs }, { count: pending }] = await Promise.all([
+  const [{ data: sources }, { data: logs }, { count: pending }, { data: itemSources }] = await Promise.all([
     db.from("sources").select("*").order("provider").order("name"),
     db.from("ingestion_logs").select("*, sources(name)").order("started_at", { ascending: false }).limit(30),
     db.from("intelligence_items").select("id", { count: "exact", head: true }).in("analysis_status", ["pending", "failed"]),
+    db.from("intelligence_items").select("source_id").not("source_id", "is", null),
   ]);
+  const articlesBySource = new Map<string, number>();
+  for (const r of itemSources ?? []) articlesBySource.set(r.source_id as string, (articlesBySource.get(r.source_id as string) ?? 0) + 1);
   return (
     <>
       <PageHeader
@@ -59,6 +62,7 @@ export default async function SourcesPage() {
                           <input type="hidden" name="active" value={s.is_active ? "0" : "1"} />
                           <Button size="sm" variant="ghost" type="submit">{s.is_active ? "Deactivate" : "Activate"}</Button>
                         </form>
+                        {profile.role === "admin" && <DeleteSourceForm id={s.id} name={s.name} articleCount={articlesBySource.get(s.id) ?? 0} />}
                       </div>
                     )}
                   </TD>

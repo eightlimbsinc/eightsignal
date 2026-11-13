@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { ActionForm, FormMessage, SubmitButton } from "@/components/shared/form";
 import { DEPARTMENTS, PRIORITIES } from "@/lib/intel/taxonomy";
-import { addNote, analyzeItem, createTaskFromRecommendation, linkClientImpact } from "../actions";
+import { addNote, analyzeItem, createTaskFromRecommendation, deleteIntelligence, linkClientImpact } from "../actions";
 
 export function AnalyzeButton({ id, label }: { id: string; label: string }) {
   const [state, action] = useActionState(analyzeItem, {});
@@ -80,6 +80,25 @@ export function LinkClientForm({ id, clients }: { id: string; clients: { id: str
         <Textarea name="impact_reason" rows={2} placeholder="Why is this client affected?" required aria-label="Impact reason" />
         <Input name="recommended_action" placeholder="Recommended action (optional)" aria-label="Recommended action" />
         <SubmitButton size="sm" variant="secondary">Save association</SubmitButton>
+        <FormMessage state={state} />
+      </form>
+    </details>
+  );
+}
+
+export function DeleteIntelligenceForm({ id, fromSource }: { id: string; fromSource: boolean }) {
+  const [state, action] = useActionState(deleteIntelligence, {});
+  return (
+    <details>
+      <summary className="cursor-pointer text-xs text-rose-300 hover:underline">Delete this article…</summary>
+      <form action={action} className="mt-2 flex flex-col gap-2">
+        <input type="hidden" name="id" value={id} />
+        <p className="text-xs text-muted-foreground">
+          Permanently removes the article with its AI analyses, notes, bookmarks and client links. Tasks created from it are kept.
+          {fromSource && " Its source is still active, so this article may be collected again on the next run — deactivate or delete the source to prevent that."}
+        </p>
+        <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="confirm" required /> I understand this cannot be undone</label>
+        <SubmitButton size="sm" variant="destructive" pendingLabel="Deleting…"><Trash2 /> Delete article</SubmitButton>
         <FormMessage state={state} />
       </form>
     </details>
