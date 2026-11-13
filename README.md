@@ -195,7 +195,7 @@ instead of failing the audit. Add it in **Cloudflare Monitor → Connect / regis
 | Function | Schedule | Calls |
 |---|---|---|
 | `scheduled-ingest` | hourly | `POST /api/cron/ingest` – collects due sources (per-source interval, failure back-off) |
-| `scheduled-analyze` | every 15 min | `POST /api/cron/analyze` – analyses one pending ingested record |
+| `scheduled-analyze` | every 5 min | `POST /api/cron/analyze` – analyses the newest pending ingested record (last 30 days by default) |
 | `scheduled-cloudflare-audit` | hourly | `POST /api/cron/cloudflare` – audits the most overdue zone if >6h since last audit |
 
 Each scheduled function only calls a protected route on the same site with

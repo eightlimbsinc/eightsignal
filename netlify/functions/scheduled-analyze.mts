@@ -24,5 +24,5 @@ async function callCron(path: string): Promise<Response> {
 const handler = async () => callCron("/api/cron/analyze");
 export default handler;
 
-// One pending ingested record per run.
-export const config: Config = { schedule: "*/15 * * * *" };
+// One pending ingested record per run (newest first), every 5 minutes ≈ 12 per hour.
+export const config: Config = { schedule: "*/5 * * * *" };

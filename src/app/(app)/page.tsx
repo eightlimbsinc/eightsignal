@@ -32,6 +32,7 @@ export default async function OverviewPage() {
   ]);
 
   const items = recent ?? [];
+  const awaiting = items.filter((i) => i.impact_level === "unassessed").length;
   const impactsByItem = new Map<string, number>();
   for (const i of impacts ?? []) impactsByItem.set(i.intelligence_id, (impactsByItem.get(i.intelligence_id) ?? 0) + 1);
   const actionsByItem = new Map<string, number>();
@@ -102,7 +103,16 @@ export default async function OverviewPage() {
           </CardHeader>
           <CardContent>
             {!signals.length ? (
-              <EmptyState icon={Sparkles} title="No assessed signals yet" description="Analyse intelligence records with Claude to populate this list." />
+              <EmptyState
+                icon={Sparkles}
+                title="No assessed signals yet"
+                description={
+                  awaiting > 0
+                    ? `${awaiting} record(s) are waiting for Claude analysis. The newest are analysed automatically every few minutes, or analyse some now from Sources.`
+                    : "Analyse intelligence records with Claude to populate this list."
+                }
+                action={awaiting > 0 ? <Link href="/sources" className="text-xs text-primary hover:underline">Analyse pending records →</Link> : undefined}
+              />
             ) : (
               <ol className="flex flex-col divide-y">
                 {signals.map(({ it }) => (
