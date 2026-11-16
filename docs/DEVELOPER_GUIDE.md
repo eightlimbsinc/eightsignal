@@ -83,7 +83,8 @@ In the dev Supabase project's **SQL Editor**, run in order:
 1. `supabase/migrations/20261112000001_core_schema.sql`
 2. `supabase/migrations/20261112000002_cloudflare_schema.sql`
 3. `supabase/migrations/20261112000003_rls_policies.sql`
-4. optional: `supabase/seed.sql` (Blend360 client/zone and inactive starter sources)
+4. `supabase/migrations/20261116000001_intelligence_tombstones.sql`
+5. optional: `supabase/seed.sql` (Blend360 client/zone and inactive starter sources)
 
 If the editor asks "Run without RLS / Run and enable RLS", choose **Run and enable RLS**; the third file enables RLS on everything anyway.
 
@@ -253,6 +254,7 @@ Key concepts:
 - Unique indexes: `intelligence_items(canonical_url)`, `(content_fingerprint)`, `(slug)`, `cloudflare_zones(domain)`, open findings `(zone_id, finding_key)`.
 - Deleting a **client** cascades to its Cloudflare accounts, tokens, zones, audits, findings, snapshots, tests, incidents and impact links. Tasks are kept with `client_id = null`.
 - `activity_logs` and `cloudflare_config_snapshots` are append-only for app users.
+- `intelligence_tombstones` remembers deleted articles (canonical URL + fingerprint). `createIntelligence()` returns `suppressed` for **ingestion** when a tombstone matches, so deleted articles aren't re-collected; manual entry can still re-add them. Written by every delete path (single, source, bulk unassessed).
 
 ### 6.2 Changing the schema
 1. Create a new file `supabase/migrations/YYYYMMDDHHMMSS_short_name.sql`. **Never edit an applied migration.**
@@ -270,7 +272,7 @@ SQL Editor, so Supabase's migration history table is empty. If you adopt `supaba
 the Supabase GitHub integration, first mark the existing three as applied, or they will run
 twice and fail:
 ```bash
-npx supabase migration repair --status applied 20261112000001 20261112000002 20261112000003
+npx supabase migration repair --status applied 20261112000001 20261112000002 20261112000003 20261116000001
 ```
 If you enable the GitHub integration later: production branch `main`, automatic branching off
 unless you want paid preview databases.

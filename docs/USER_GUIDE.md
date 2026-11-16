@@ -89,7 +89,14 @@ Each record shows the provider, category, publication and discovery dates, a lin
 
 At the top: **Bookmark** to save it for later, and **Mark unread**. Opening a record marks it as read.
 
-### 4.4 Filtering the feed
+### 4.4 Deleting articles (Admin)
+- **One article:** open it → **Danger zone** → **Delete this article…**
+- **All unassessed articles:** at the top of **Intelligence**, open **Delete unassessed articles**, optionally pick a provider, type `DELETE`, and confirm.
+- **A whole source and its articles:** **Sources** → **Delete…** on that source.
+
+Deleted articles are remembered, so automatic collection won't bring them back (you can still add one manually). Tasks are kept.
+
+### 4.5 Filtering the feed
 Search by words in the title or summary, or filter by provider, category, impact, status, date
 range, or **Unread / Bookmarked**. Click **Filter** to apply.
 

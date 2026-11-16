@@ -6,6 +6,7 @@ import { requireAdmin, requireEditor, AuthorizationError } from "@/lib/auth";
 import { errorMessage, type ActionState } from "@/lib/action-state";
 import { CATEGORY_KEYS, PROVIDER_KEYS } from "@/lib/intel/taxonomy";
 import { ingestSource } from "@/lib/ingestion/run";
+import { writeTombstones } from "@/lib/intel/service";
 import { validateOutboundUrl } from "@/lib/security/ip";
 import { assertWithinAiRateLimit, runAnalysis, RateLimitedError } from "@/lib/ai/run";
 import { AnalysisError, isAiConfigured } from "@/lib/ai/analyze";
@@ -129,6 +130,12 @@ export async function deleteSource(_: ActionState, formData: FormData): Promise<
     if (!source) return { error: "Source not found." };
     let articles = 0;
     if (alsoArticles) {
+      const { data: items } = await db
+        .from("intelligence_items")
+        .select("canonical_url, content_fingerprint, title, provider, source_id")
+        .eq("source_id", id)
+        .limit(5000);
+      if (items?.length) await writeTombstones(db, items, "source_deleted", user.id);
       const { data, error } = await db.from("intelligence_items").delete().eq("source_id", id).select("id");
       if (error) return { error: error.message };
       articles = data?.length ?? 0;

@@ -87,6 +87,27 @@ do $$ begin
   assert (select client_id from public.actions where id = '40000000-0000-0000-0000-000000000001') is null, 'task should be kept and unlinked';
 end $$;
 
+-- Tombstones: analysts can read but not write; admins can write; nobody can delete.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  begin
+    insert into public.intelligence_tombstones (content_fingerprint, reason) values ('fpx', 'deleted');
+    raise exception 'analyst wrote a tombstone';
+  exception when insufficient_privilege then null; end;
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+insert into public.intelligence_tombstones (content_fingerprint, reason) values ('fpx', 'bulk_unassessed');
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  assert (select count(*) from public.intelligence_tombstones) = 1, 'analyst should read tombstones';
+  begin
+    delete from public.intelligence_tombstones;
+    raise exception 'tombstone deleted';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 -- Anonymous: nothing.
 reset request.jwt.claim.sub;
 set role anon;

@@ -38,7 +38,50 @@ export async function findDuplicate(
 
 export type CreateResult =
   | { status: "created"; id: string; slug: string }
-  | { status: "duplicate"; duplicate: DuplicateMatch };
+  | { status: "duplicate"; duplicate: DuplicateMatch }
+  | { status: "suppressed" }; // previously deleted by an admin; skipped by automatic collection
+
+/**
+ * True when an admin deleted this article before. Only automatic ingestion honours
+ * tombstones; a person can still re-add a deleted article manually. If the table is
+ * missing (migration not applied yet) this fails open so ingestion keeps working.
+ */
+export async function isTombstoned(db: SupabaseClient, canonicalUrl: string | null, fingerprint: string): Promise<boolean> {
+  const filters = [`content_fingerprint.eq.${fingerprint}`];
+  if (canonicalUrl) filters.push(`canonical_url.eq."${canonicalUrl.replace(/"/g, '\\"')}"`);
+  const { data, error } = await db.from("intelligence_tombstones").select("id").or(filters.join(",")).limit(1);
+  if (error) {
+    console.warn("[intel] tombstone check skipped:", error.message);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+export interface TombstoneInput {
+  canonical_url: string | null;
+  content_fingerprint: string;
+  title: string;
+  provider: string;
+  source_id: string | null;
+}
+
+/** Records deleted articles. Returns false (with a logged warning) if the table is missing. */
+export async function writeTombstones(
+  db: SupabaseClient,
+  rows: TombstoneInput[],
+  reason: "deleted" | "bulk_unassessed" | "source_deleted",
+  userId: string,
+): Promise<boolean> {
+  for (let i = 0; i < rows.length; i += 200) {
+    const chunk = rows.slice(i, i + 200).map((r) => ({ ...r, title: r.title.slice(0, 300), reason, deleted_by: userId }));
+    const { error } = await db.from("intelligence_tombstones").insert(chunk);
+    if (error) {
+      console.warn("[intel] could not write tombstones:", error.message);
+      return false;
+    }
+  }
+  return true;
+}
 
 /** Inserts a record after duplicate detection; DB unique indexes are the final guard. */
 export async function createIntelligence(db: SupabaseClient, input: NewIntelligence): Promise<CreateResult> {
@@ -46,6 +89,9 @@ export async function createIntelligence(db: SupabaseClient, input: NewIntellige
   const fingerprint = contentFingerprint(input.title, input.rawContent ?? input.summary ?? "");
   const dup = await findDuplicate(db, canonical, fingerprint);
   if (dup) return { status: "duplicate", duplicate: dup };
+  if (input.entryMethod === "ingestion" && (await isTombstoned(db, canonical, fingerprint))) {
+    return { status: "suppressed" };
+  }
 
   const base = slugify(input.title);
   const slug = `${base}-${fingerprint.slice(0, 6)}`;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { CATEGORIES, IMPACT_LEVELS, ITEM_STATUSES, PROVIDERS, categoryLabel, providerName } from "@/lib/intel/taxonomy";
 import { formatDate, truncate } from "@/lib/utils";
+import { BulkDeleteUnassessed } from "./bulk-delete";
 
 export const metadata = { title: "Intelligence" };
 const PAGE_SIZE = 25;
@@ -29,10 +30,16 @@ export default async function IntelligencePage({ searchParams }: PageProps<"/int
   const page = Math.max(1, Number(str(sp.page)) || 1);
   const deleted = str(sp.deleted);
 
-  const [{ data: bookmarks }, { data: receipts }] = await Promise.all([
+  const isAdmin = profile.role === "admin";
+  const [{ data: bookmarks }, { data: receipts }, { data: unassessed }] = await Promise.all([
     db.from("bookmarks").select("intelligence_id").eq("user_id", user.id),
     db.from("read_receipts").select("intelligence_id").eq("user_id", user.id),
+    isAdmin
+      ? db.from("intelligence_items").select("provider").eq("impact_level", "unassessed").neq("analysis_status", "running").limit(5000)
+      : Promise.resolve({ data: [] as { provider: string }[] }),
   ]);
+  const unassessedByProvider: Record<string, number> = {};
+  for (const r of unassessed ?? []) unassessedByProvider[r.provider] = (unassessedByProvider[r.provider] ?? 0) + 1;
   const bookmarked = new Set((bookmarks ?? []).map((b) => b.intelligence_id));
   const read = new Set((receipts ?? []).map((r) => r.intelligence_id));
 
@@ -80,6 +87,9 @@ export default async function IntelligencePage({ searchParams }: PageProps<"/int
           )
         }
       />
+      {isAdmin && (unassessed?.length ?? 0) > 0 && (
+        <BulkDeleteUnassessed counts={{ total: unassessed!.length, byProvider: unassessedByProvider }} />
+      )}
       <form className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-9" role="search" aria-label="Filter intelligence">
         <Input name="q" defaultValue={q} placeholder="Search title or summary" className="col-span-2 md:col-span-4 xl:col-span-2" aria-label="Search" />
         <Select name="provider" defaultValue={provider} aria-label="Provider">

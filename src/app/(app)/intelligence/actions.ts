@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin, requireEditor, requireMember, AuthorizationError } from "@/lib/auth";
 import { errorMessage, type ActionState } from "@/lib/action-state";
-import { createIntelligence } from "@/lib/intel/service";
+import { createIntelligence, writeTombstones } from "@/lib/intel/service";
 import { extractPage } from "@/lib/intel/html";
 import { safeFetch, SafeFetchError } from "@/lib/security/safe-fetch";
 import { CATEGORY_KEYS, ITEM_STATUSES, PROVIDER_KEYS, PRIORITIES } from "@/lib/intel/taxonomy";
@@ -58,6 +58,7 @@ export async function createManualEntry(_: ActionState, formData: FormData): Pro
         href: `/intelligence/${res.duplicate.id}`,
       };
     }
+    if (res.status !== "created") return { error: "This article could not be saved." };
     id = res.id;
     await logActivity(db, { userId: user.id, action: "intelligence.create", entityType: "intelligence_item", entityId: id, metadata: { method: "manual" } });
   } catch (e) {
@@ -111,6 +112,7 @@ export async function submitUrl(_: ActionState, formData: FormData): Promise<Act
         href: `/intelligence/${res.duplicate.id}`,
       };
     }
+    if (res.status !== "created") return { error: "This article could not be saved." };
     id = res.id;
     await logActivity(db, { userId: user.id, action: "intelligence.create", entityType: "intelligence_item", entityId: id, metadata: { method: "url", url: input.url } });
   } catch (e) {
@@ -257,6 +259,12 @@ export async function deleteIntelligence(_: ActionState, formData: FormData): Pr
     const { db, user } = await requireAdmin();
     const id = z.string().uuid().parse(formData.get("id"));
     if (formData.get("confirm") !== "on") return { error: "Tick the confirmation box first." };
+    const { data: item } = await db
+      .from("intelligence_items")
+      .select("canonical_url, content_fingerprint, title, provider, source_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (item) await writeTombstones(db, [item], "deleted", user.id);
     const { data, error } = await db.from("intelligence_items").delete().eq("id", id).select("id, title");
     if (error) return { error: error.message };
     if (!data?.length) return { error: "Nothing was deleted — administrator access is required." };
@@ -268,4 +276,53 @@ export async function deleteIntelligence(_: ActionState, formData: FormData): Pr
   revalidatePath("/intelligence");
   revalidatePath("/");
   redirect(`/intelligence?deleted=${encodeURIComponent(title.slice(0, 120))}`);
+}
+
+/**
+ * Admin-only bulk delete of every article that has not been assessed by Claude
+ * (impact "unassessed"), optionally for one provider. Records currently being
+ * analysed are skipped. Deleted articles are remembered so automatic collection
+ * does not import them again.
+ */
+export async function deleteUnassessed(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const { db, user } = await requireAdmin();
+    if (String(formData.get("confirm_text") ?? "").trim().toUpperCase() !== "DELETE") {
+      return { error: "Type DELETE to confirm." };
+    }
+    const provider = String(formData.get("provider") ?? "");
+    if (provider && !PROVIDER_KEYS.includes(provider)) return { error: "Unknown provider." };
+    let q = db
+      .from("intelligence_items")
+      .select("id, canonical_url, content_fingerprint, title, provider, source_id")
+      .eq("impact_level", "unassessed")
+      .neq("analysis_status", "running")
+      .limit(5000);
+    if (provider) q = q.eq("provider", provider);
+    const { data: rows, error } = await q;
+    if (error) return { error: error.message };
+    if (!rows?.length) return { ok: true, message: "There are no unassessed articles to delete." };
+
+    const remembered = await writeTombstones(db, rows, "bulk_unassessed", user.id);
+    let deleted = 0;
+    for (let i = 0; i < rows.length; i += 200) {
+      const ids = rows.slice(i, i + 200).map((r) => r.id);
+      const { data, error: delErr } = await db.from("intelligence_items").delete().in("id", ids).select("id");
+      if (delErr) return { error: `Deleted ${deleted} so far, then failed: ${delErr.message}` };
+      deleted += data?.length ?? 0;
+    }
+    await logActivity(db, {
+      userId: user.id, action: "intelligence.bulk_delete_unassessed", entityType: "intelligence_item",
+      metadata: { deleted, provider: provider || "all", remembered },
+    });
+    revalidatePath("/intelligence");
+    revalidatePath("/sources");
+    revalidatePath("/");
+    return {
+      ok: true,
+      message: `Deleted ${deleted} unassessed article(s).${remembered ? " They won't be collected again automatically." : " Warning: apply the latest database migration, otherwise active sources may collect them again."}`,
+    };
+  } catch (e) {
+    return fail(e);
+  }
 }
